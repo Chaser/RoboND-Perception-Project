@@ -93,9 +93,23 @@ def pcl_callback(pcl_msg):
     # Finally use the filter function to obtain the resultant point cloud.
     cloud_filtered = passthrough.filter()
 
-    # TODO: RANSAC Plane Segmentation
+    # RANSAC plane segmentation
+    # Create the segmentation object
+    seg = cloud_filtered.make_segmenter()
+    # Set the model you wish to fit
+    seg.set_model_type(pcl.SACMODEL_PLANE)
+    seg.set_method_type(pcl.SAC_RANSAC)
+    # Max distance for a point to be considered fitting the model
+    max_distance = 0.01
+    seg.set_distance_threshold(max_distance)
+    # Call the segment function to obtain set of inlier indices and model coefficients
+    inliers, coefficients = seg.segment()
 
-    # TODO: Extract inliers and outliers
+    # Extract inliers and outliers
+    # Extract inliers (tabletop)
+    cloud_table = cloud_filtered.extract(inliers, negative=False)
+    # Extract outliers (objects)
+    cloud_objects = cloud_filtered.extract(inliers, negative=True)
  
     # TODO: Euclidean Clustering
 
@@ -105,11 +119,15 @@ def pcl_callback(pcl_msg):
     ros_cloud_outliers_filtered = pcl_to_ros(outliers_filtered)
     ros_cloud_downsampled =  pcl_to_ros(downsampled)
     ros_cloud_filtered = pcl_to_ros(cloud_filtered)
+    ros_cloud_objects = pcl_to_ros(cloud_objects)
+    ros_cloud_table = pcl_to_ros(cloud_table)
 
     # TODO: Publish ROS messages
     pcl_outliers_filtered_pub.publish(ros_cloud_outliers_filtered)
     pcl_downsampled_pub.publish(ros_cloud_downsampled)
     pcl_filtered_pub.publish(ros_cloud_filtered)
+    pcl_objects_pub.publish(ros_cloud_objects)
+    pcl_table_pub.publish(ros_cloud_table)
 
 
 # Exercise-3 TODOs:
@@ -187,6 +205,8 @@ if __name__ == '__main__':
     pcl_outliers_filtered_pub = rospy.Publisher("/pcl_outliers_filtered", PointCloud2, queue_size=1)
     pcl_downsampled_pub = rospy.Publisher("/pcl_downsampled", PointCloud2, queue_size=1)
     pcl_filtered_pub = rospy.Publisher("/pcl_filtered", PointCloud2, queue_size=1)
+    pcl_objects_pub = rospy.Publisher("/pcl_objects", PointCloud2, queue_size=1)
+    pcl_table_pub = rospy.Publisher("/pcl_table", PointCloud2, queue_size=1)
 
     # TODO: Load Model From disk
 
