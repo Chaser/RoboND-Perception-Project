@@ -151,6 +151,45 @@ cloud_objects = cloud_filtered.extract(inliers, negative=True)
 
 ![alt text][image7]
 
+# Clustering for Segmentation
+Density-Based Spatial Clustering of Applications with Noise or `DBSCAN` 
+
+```python
+# Euclidean Clustering
+white_cloud = XYZRGB_to_XYZ(cloud_objects)  # Apply function to convert XYZRGB to XYZ
+tree = white_cloud.make_kdtree()
+# Create a cluster extraction object
+ec = white_cloud.make_EuclideanClusterExtraction()
+# Set tolerances for distance threshold
+# as well as minimum and maximum cluster size (in points)
+ec.set_ClusterTolerance(0.02)
+ec.set_MinClusterSize(10)
+ec.set_MaxClusterSize(2500)
+# Search the k-d tree for clusters
+ec.set_SearchMethod(tree)
+# Extract indices for each of the discovered clusters
+cluster_indices = ec.Extract()
+
+# Create Cluster-Mask Point Cloud to visualize each cluster separately
+# Assign a color corresponding to each segmented object in scene
+cluster_color = get_color_list(len(cluster_indices))
+color_cluster_point_list = []
+
+for j, indices in enumerate(cluster_indices):
+    for i, indice in enumerate(indices):
+        color_cluster_point_list.append([white_cloud[indice][0],
+                                            white_cloud[indice][1],
+                                            white_cloud[indice][2],
+                                            rgb_to_float(cluster_color[j])])
+
+# Create new cloud containing all clusters, each with unique color
+cluster_cloud = pcl.PointCloud_PointXYZRGB()
+cluster_cloud.from_list(color_cluster_point_list)
+```
+
+By creating a random list of colours and assigning each to a cluster the following objects can be seen.
+
+![alt text][image8]
 # Required Steps for a Passing Submission:
 1. Extract features and train an SVM model on new objects (see `pick_list_*.yaml` in `/pr2_robot/config/` for the list of models you'll be trying to identify). 
 2. Write a ROS node and subscribe to `/pr2/world/points` topic. This topic contains noisy point cloud data that you must work with.
