@@ -102,7 +102,6 @@ The result produces a less dense point cloud which will decrease computation tim
 ## Pass through Filtering
 While vox filtering has reduced the density of the point cloud data that will be examined there is one other step we can perform and thats because we have prior knowledge of the scenario. Specifically we know that objects will exist on the table and we know where the size and location of the table. Therefore we can "crop" out irrelvant areas of the scene, creating a `region of interest`.
 
-
 ```python
 # PassThrough Filter
 # Create a PassThrough filter object.
@@ -125,6 +124,32 @@ passthrough.set_filter_limits(axis_min, axis_max)
 
 ![alt text][image6]
 
+
+# RANSAC Plane Segmentation
+The next stage of our preception pipeline is to remove the table, which will done with Random Sample Consensus or `RANSAC`. It is used to identify points in a dataset that belong to a particular model. It assumes that the data in a dataset is composed of inliers, which have a specific set of parameters and outliers that don't. 
+
+In this particular case we have prior knowledge of the table, shape and size. By modelling the table as a plane it can be removed from the point cloud. 
+
+```python
+# RANSAC plane segmentation
+# Create the segmentation object
+seg = cloud_filtered.make_segmenter()
+# Set the model you wish to fit
+seg.set_model_type(pcl.SACMODEL_PLANE)
+seg.set_method_type(pcl.SAC_RANSAC)
+# Max distance for a point to be considered fitting the model
+max_distance = 0.01
+seg.set_distance_threshold(max_distance)
+# Call the segment function to obtain set of inlier indices and model coefficients
+inliers, coefficients = seg.segment()
+# Extract inliers and outliers
+# Extract inliers (tabletop)
+cloud_table = cloud_filtered.extract(inliers, negative=False)
+# Extract outliers (objects)
+cloud_objects = cloud_filtered.extract(inliers, negative=True)
+```
+
+![alt text][image7]
 
 # Required Steps for a Passing Submission:
 1. Extract features and train an SVM model on new objects (see `pick_list_*.yaml` in `/pr2_robot/config/` for the list of models you'll be trying to identify). 
