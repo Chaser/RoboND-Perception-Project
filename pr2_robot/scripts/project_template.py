@@ -58,7 +58,7 @@ def pcl_callback(pcl_msg):
     # Set the number of neighboring points to analyze for any given point
     outlier_filter.set_mean_k(5)
     # Set threshold scale factor
-    x = 0.5
+    x = 0.1
     # Any point with a mean distance larger than global (mean distance+x*std_dev) will be considered outlier
     outlier_filter.set_std_dev_mul_thresh(x)
     # Finally call the filter function for magic
@@ -68,7 +68,7 @@ def pcl_callback(pcl_msg):
     # Create a VoxelGrid filter object for our input point cloud
     vox = outliers_filtered.make_voxel_grid_filter()
     # Choose a voxel (also known as leaf) size
-    LEAF_SIZE = 0.1
+    LEAF_SIZE = 0.01
     # Set the voxel (or leaf) size
     vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
     # Call the filter function to obtain the resultant downsampled point cloud
