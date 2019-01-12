@@ -4,7 +4,12 @@
 
 ---
 [//]: # (Image References)
-
+[image1]: ./img/project_intro.png
+[image2]: ./img/rgbd_capture.png
+[image3]: ./img/pcd_vox_downsample.png
+[image4]: ./img/filter_vox_downsample.png
+[image5]: ./img/pcd_passthrough.png
+[image6]: ./img/filter_passthrough.png
 ---
 
 
@@ -49,6 +54,78 @@ if __name__ == '__main__':
     # Create Publishers
     pcl_outliers_filtered_pub = rospy.Publisher("/pcl_outliers_filtered", PointCloud2, queue_size=1)
 ```
+
+![alt text][image2]
+
+# Point Cloud Filtering
+RGB-D sensors provide a wealth of information, however the majority of the data is not useful for identifying the targets. As we learnt in the lessons.
+
+`"Running computation on a full resolution point cloud can be slow and may not yield any improvement on results obtained using a more sparsely sampled point cloud"` 
+
+In our case we will take advantage of three filtering techniques, specifically `Outlier Removal Filter`, `Voxel Grid Downsampling` and then a `Pass through filter`
+
+## Outlier Removal Filter
+Outliers create statistical noise and one such technica to remove such outlisers is by performing statistical analysis on neighbouring points.
+
+```python
+# Statistical Outlier Filtering
+# Create a filter object: 
+outlier_filter = pcl_data.make_statistical_outlier_filter()
+# Set the number of neighboring points to analyze for any given point
+outlier_filter.set_mean_k(5)
+# Set threshold scale factor
+x = 0.1
+# Any point with a mean distance larger than global (mean distance+x*std_dev) will be considered outlier
+outlier_filter.set_std_dev_mul_thresh(x)
+# Finally call the filter function for magic
+outliers_filtered = outlier_filter.filter()
+```
+
+## Voxel Grid Downsampling
+As indicated above, performing computations on dense point clouds can be slow and not provide any benfit. Downsampling is a method of quantizing the captured data to derive a point cloud that has fewer points. The density of the point clouds is by the `leaf` size which correlates to the sampling size.
+
+```python
+## Voxel Grid Filter ##
+# Create a VoxelGrid filter object for our input point cloud
+vox = pcl_data.make_voxel_grid_filter()
+LEAF_SIZE = 0.01
+# Set the voxel (or leaf) size
+vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
+```
+
+The result produces a less dense point cloud which will decrease computation time without reducing the quality of detection.
+
+![alt text][image3]
+
+![alt text][image4]
+
+## Pass through Filtering
+While vox filtering has reduced the density of the point cloud data that will be examined there is one other step we can perform and thats because we have prior knowledge of the scenario. Specifically we know that objects will exist on the table and we know where the size and location of the table. Therefore we can "crop" out irrelvant areas of the scene, creating a `region of interest`.
+
+
+```python
+# PassThrough Filter
+# Create a PassThrough filter object.
+passthrough = downsampled.make_passthrough_filter()
+# Assign axis and range to the passthrough filter object.
+filter_axis = 'z'
+passthrough.set_filter_field_name(filter_axis)
+axis_min = 0.60
+axis_max = 0.9
+passthrough.set_filter_limits(axis_min, axis_max)
+# Also limit the y axis to avoid the side bins
+filter_axis = 'y'
+passthrough.set_filter_field_name(filter_axis)
+axis_min = -0.42
+axis_max = +0.42
+passthrough.set_filter_limits(axis_min, axis_max)
+```
+
+![alt text][image5]
+
+![alt text][image6]
+
+
 # Required Steps for a Passing Submission:
 1. Extract features and train an SVM model on new objects (see `pick_list_*.yaml` in `/pr2_robot/config/` for the list of models you'll be trying to identify). 
 2. Write a ROS node and subscribe to `/pr2/world/points` topic. This topic contains noisy point cloud data that you must work with.
