@@ -49,28 +49,62 @@ def send_to_yaml(yaml_filename, dict_list):
 # Callback function for your Point Cloud Subscriber
 def pcl_callback(pcl_msg):
 
-# Exercise-2 TODOs:
+    # Convert ROS msg to PCL data
+    pcl_data = ros_to_pcl(pcl_msg)
 
-    # TODO: Convert ROS msg to PCL data
+    # Statistical Outlier Filtering
+    # Create a filter object: 
+    outlier_filter = pcl_data.make_statistical_outlier_filter()
+    # Set the number of neighboring points to analyze for any given point
+    outlier_filter.set_mean_k(5)
+    # Set threshold scale factor
+    x = 0.5
+    # Any point with a mean distance larger than global (mean distance+x*std_dev) will be considered outlier
+    outlier_filter.set_std_dev_mul_thresh(x)
+    # Finally call the filter function for magic
+    outliers_filtered = outlier_filter.filter()
+
+    # Voxel Grid Downsampling
+    # Create a VoxelGrid filter object for our input point cloud
+    vox = outliers_filtered.make_voxel_grid_filter()
+    # Choose a voxel (also known as leaf) size
+    LEAF_SIZE = 0.1
+    # Set the voxel (or leaf) size
+    vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
+    # Call the filter function to obtain the resultant downsampled point cloud
+    downsampled = vox.filter()
+
+    # PassThrough Filter
+    # Create a PassThrough filter object.
+    passthrough = downsampled.make_passthrough_filter()
+    # Assign axis and range to the passthrough filter object.
+    filter_axis = 'z'
+    passthrough.set_filter_field_name(filter_axis)
+    axis_min = 0.60
+    axis_max = 0.9
+    passthrough.set_filter_limits(axis_min, axis_max)
+    # Also limit the y axis to avoid the side bins
+    filter_axis = 'y'
+    passthrough.set_filter_field_name(filter_axis)
+    axis_min = -0.42
+    axis_max = +0.42
+    passthrough.set_filter_limits(axis_min, axis_max)
     
-    # TODO: Statistical Outlier Filtering
-
-    # TODO: Voxel Grid Downsampling
-
-    # TODO: PassThrough Filter
+    # Finally use the filter function to obtain the resultant point cloud.
+    cloud_filtered = passthrough.filter()
 
     # TODO: RANSAC Plane Segmentation
 
     # TODO: Extract inliers and outliers
-
+ 
     # TODO: Euclidean Clustering
 
     # TODO: Create Cluster-Mask Point Cloud to visualize each cluster separately
 
     # TODO: Convert PCL data to ROS messages
-    ros_cloud_outliers_filtered = pcl_to_ros(pcl_data)
-    ros_cloud_downsampled =  pcl_to_ros(pcl_data)
-    ros_cloud_filtered = pcl_to_ros(pcl_data)
+    ros_cloud_outliers_filtered = pcl_to_ros(outliers_filtered)
+    ros_cloud_downsampled =  pcl_to_ros(downsampled)
+    ros_cloud_filtered = pcl_to_ros(cloud_filtered)
 
     # TODO: Publish ROS messages
     pcl_outliers_filtered_pub.publish(ros_cloud_outliers_filtered)
