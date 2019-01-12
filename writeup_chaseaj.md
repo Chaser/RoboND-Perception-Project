@@ -1,9 +1,54 @@
-## Project: Perception Pick & Place
-### Writeup Template: You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
+# Project: Perception Pick & Place
+
+## Engineer: Chase Johnson
+
+---
+[//]: # (Image References)
 
 ---
 
 
+**Aim:**  The aim of the `Perception Pick & Place` project is to create 3D perception pipeline for a PR2 robot utilziing an RGB-D camera. The perception pipline allows for capturing sensor data to point cloud data (PCD), to filter, isolate and detect objects.
+
+This project is inspired by the [Amazon Robotics Challenge](https://www.amazonrobotics.com/site/binaries/content/assets/amazonrobotics/arc/2017-amazon-robotics-challenge-rules-v3.pdf)
+
+
+# 3D Image Acquisition
+Before doing anything we must acquire the point cloud data `PCD` from the RGBD sensor. The sensor conviently establishes a ROS topic, specifically `/pr2/world/points` so this can be subscribed to as shown below:
+
+```python
+# ROS node initialization
+rospy.init_node('clustering', anonymous=True)
+
+# Create Subscribers
+pcl_sub = rospy.Subscriber("/pr2/world/points", pc2.PointCloud2, pcl_callback, queue_size=1)
+```
+
+To validate the subscription was working correctly the point cloud data aquired from the RGB-D sensor and passed to the callback was looped back to a test topic.
+
+```python
+# Callback function for your Point Cloud Subscriber
+def pcl_callback(pcl_msg):
+    ## Convert ROS msg to PCL data ##
+    pcl_data = ros_to_pcl(pcl_msg)
+    # ...
+    # TODO: Convert PCL data to ROS messages
+    ros_cloud_outliers_filtered = pcl_to_ros(pcl_data)
+
+    # TODO: Publish ROS messages
+    pcl_outliers_filtered_pub.publish(ros_cloud_outliers_filtered)
+
+
+if __name__ == '__main__':
+    # ROS node initialization
+    rospy.init_node('clustering', anonymous=True)
+
+    # Create Subscribers
+    pcl_sub = rospy.Subscriber("/pr2/world/points", pc2.PointCloud2, pcl_callback, queue_size=1)
+
+    # Create Publishers
+    pcl_outliers_filtered_pub = rospy.Publisher("/pcl_outliers_filtered", PointCloud2, queue_size=1)
+```
 # Required Steps for a Passing Submission:
 1. Extract features and train an SVM model on new objects (see `pick_list_*.yaml` in `/pr2_robot/config/` for the list of models you'll be trying to identify). 
 2. Write a ROS node and subscribe to `/pr2/world/points` topic. This topic contains noisy point cloud data that you must work with.
