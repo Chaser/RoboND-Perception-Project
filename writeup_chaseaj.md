@@ -2,16 +2,27 @@
 
 ## Engineer: Chase Johnson
 
----
 [//]: # (Image References)
 [image1]: ./img/project_intro.png
 [image2]: ./img/rgbd_capture.png
 [image3]: ./img/pcd_vox_downsample.png
 [image4]: ./img/filter_vox_downsample.png
-[image5]: ./img/pcd_passthrough.png
-[image6]: ./img/filter_passthrough.png
-[image7]: ./img/ransac.png
+[image5]: ./img/filter_passthrough.png
+[image6]: ./img/filter_inlier.png
+[image7]: ./img/filter_outlier.png
 [image8]: ./img/dbscan_example.png
+[image9]: ./img/cluster_segmentation.png
+[image10]: ./img/capture_feature_example.png
+[image11]: ./img/svm_train_confusion_matrix_10_samples_64_bin_linear_nfolds_5.png
+[image12]: ./img/svm_train_normalized_confusion_matrix_10_samples_64_bin_linear_nfolds_5.png
+[image13]: ./img/svm_train_confusion_matrix_20_samples_64_bin_linear_nfolds_5.png
+[image14]: ./img/svm_train_normalized_confusion_matrix_20_samples_64_bin_linear_nfolds_5.png
+[image15]: ./img/svm_train_confusion_matrix_10_samples_128_bin_linear_nfolds_5.png
+[image16]: ./img/svm_train_normalized_confusion_matrix_10_samples_128_bin_linear_nfolds_5.png
+[image17]: ./img/classification_result_world_1.png
+[image18]: ./img/classification_result_world_2.png
+[image19]: ./img/classification_result_world_3.png
+
 ---
 
 **Aim:**  The aim of the `Perception Pick & Place` project is to create 3D perception pipeline for a PR2 robot utilziing an RGB-D camera. The perception pipline allows for capturing sensor data to point cloud data (PCD), to filter, isolate and detect objects.
@@ -110,23 +121,27 @@ While vox filtering has reduced the density of the point cloud data that will be
 # PassThrough Filter
 # Create a PassThrough filter object.
 passthrough = downsampled.make_passthrough_filter()
-# Assign axis and range to the passthrough filter object.
 filter_axis = 'z'
 passthrough.set_filter_field_name(filter_axis)
 axis_min = 0.60
 axis_max = 0.9
 passthrough.set_filter_limits(axis_min, axis_max)
+# Call the filter function to obtain the resultant
+cloud_filtered = passthrough.filter()
 # Also limit the y axis to avoid the side bins
+passthrough = cloud_filtered.make_passthrough_filter()
 filter_axis = 'y'
 passthrough.set_filter_field_name(filter_axis)
 axis_min = -0.42
 axis_max = +0.42
 passthrough.set_filter_limits(axis_min, axis_max)
+# Finally use the filter function to obtain the resultant point cloud.
+cloud_filtered = passthrough.filter()
+filename = 'passthrough_filter.pcd'
+#pcl.save(cloud_filtered, filename)
 ```
 
 ![alt text][image5]
-
-![alt text][image6]
 
 
 # RANSAC Plane Segmentation
@@ -153,7 +168,12 @@ cloud_table = cloud_filtered.extract(inliers, negative=False)
 cloud_objects = cloud_filtered.extract(inliers, negative=True)
 ```
 
+Below is the image of the inliers (Table) and the outliers (objects of interest)
+
+![alt text][image6]
+
 ![alt text][image7]
+
 
 # Clustering for Segmentation
 Density-Based Spatial Clustering of Applications with Noise or `DBSCAN`. `DBSCAN` creates clusters by grouping data points by a threshold from the nearest neighbours (shown below). The algorithm is sometimes called `Euclidean Clustering` as the decision for a point to reside within a cluster is based ipon the "Euclidean distance" between that point and other cluster members.
@@ -200,54 +220,140 @@ By creating a random list of colours and assigning each to a cluster the followi
 ![alt text][image9]
 
 
-# Required Steps for a Passing Submission:
-1. Extract features and train an SVM model on new objects (see `pick_list_*.yaml` in `/pr2_robot/config/` for the list of models you'll be trying to identify). 
-2. Write a ROS node and subscribe to `/pr2/world/points` topic. This topic contains noisy point cloud data that you must work with.
-3. Use filtering and RANSAC plane fitting to isolate the objects of interest from the rest of the scene.
-4. Apply Euclidean clustering to create separate clusters for individual items.
-5. Perform object recognition on these objects and assign them labels (markers in RViz).
-6. Calculate the centroid (average in x, y and z) of the set of points belonging to that each object.
-7. Create ROS messages containing the details of each object (name, pick_pose, etc.) and write these messages out to `.yaml` files, one for each of the 3 scenarios (`test1-3.world` in `/pr2_robot/worlds/`).  [See the example `output.yaml` for details on what the output should look like.](https://github.com/udacity/RoboND-Perception-Project/blob/master/pr2_robot/config/output.yaml)  
-8. Submit a link to your GitHub repo for the project or the Python code for your perception pipeline and your output `.yaml` files (3 `.yaml` files, one for each test world).  You must have correctly identified 100% of objects from `pick_list_1.yaml` for `test1.world`, 80% of items from `pick_list_2.yaml` for `test2.world` and 75% of items from `pick_list_3.yaml` in `test3.world`.
-9. Congratulations!  Your Done!
+# Object Recognition Training
+Object recogntion is the ability to detect the objects by examining features. However, features have to be taught or trained to know what the expected values of the objects features are. 
 
-# Extra Challenges: Complete the Pick & Place
-7. To create a collision map, publish a point cloud to the `/pr2/3d_map/points` topic and make sure you change the `point_cloud_topic` to `/pr2/3d_map/points` in `sensors.yaml` in the `/pr2_robot/config/` directory. This topic is read by Moveit!, which uses this point cloud input to generate a collision map, allowing the robot to plan its trajectory.  Keep in mind that later when you go to pick up an object, you must first remove it from this point cloud so it is removed from the collision map!
-8. Rotate the robot to generate collision map of table sides. This can be accomplished by publishing joint angle value(in radians) to `/pr2/world_joint_controller/command`
-9. Rotate the robot back to its original state.
-10. Create a ROS Client for the “pick_place_routine” rosservice.  In the required steps above, you already created the messages you need to use this service. Checkout the [PickPlace.srv](https://github.com/udacity/RoboND-Perception-Project/tree/master/pr2_robot/srv) file to find out what arguments you must pass to this service.
-11. If everything was done correctly, when you pass the appropriate messages to the `pick_place_routine` service, the selected arm will perform pick and place operation and display trajectory in the RViz window
-12. Place all the objects from your pick list in their respective dropoff box and you have completed the challenge!
-13. Looking for a bigger challenge?  Load up the `challenge.world` scenario and see if you can get your perception pipeline working there!
+Two particular features we will use to classify the objects we are examining are `colour histogram` and `surface normals`. 
 
-## [Rubric](https://review.udacity.com/#!/rubrics/1067/view) Points
-### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
+## Capturing Object Features
+Capturing the objects features is performed by spawning (`spawn_model`) a number of a random models from different angles while extracting the `colour` and `surface normals` and labelling each set (code below)
 
----
-### Writeup / README
+```python
+# Extract histogram features
+chists = compute_color_histograms(sample_cloud, using_hsv=True, bin_size=hist_bin)
+normals = get_normals(sample_cloud)
+nhists = compute_normal_histograms(normals, bin_size=hist_bin)
+feature = np.concatenate((chists, nhists))
+labeled_features.append([feature, model_name])
+```
 
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  
+![alt text][image10]
 
-You're reading it!
+Example of randomized model generation
 
-### Exercise 1, 2 and 3 pipeline implemented
-#### 1. Complete Exercise 1 steps. Pipeline for filtering and RANSAC plane fitting implemented.
+Two changes were made from the default settings, firstly `RGB` was translated to `HSV` due to it being less senstive to lighting conditions. Also the number of randomized model conditions was increased from 5 to 10 but also experimented with 20. The `HSV` bin size was also varied from `64` to `128` to examine changes.
 
-#### 2. Complete Exercise 2 steps: Pipeline including clustering for segmentation implemented.  
+## Training the SVM Model
+Supported Vector Machine (SVM), a supervised machine learning algorithm by applying an iterative method where each in the training set is characterized by a feature vector and a label.
 
-#### 2. Complete Exercise 3 Steps.  Features extracted and SVM trained.  Object recognition implemented.
-Here is an example of how to include an image in your writeup.
+In this case, each item had two features, `colour` based on `HSV` and `surface` noramals. `train_svm.py` was used to exeperiment with a number of parameters (`svm-data.md`) 
 
-![demo-1](https://user-images.githubusercontent.com/20687560/28748231-46b5b912-7467-11e7-8778-3095172b7b19.png)
+### SVM Training Results
+Out of the box using history grams with 64 bins the SVM revealed a 94.5% accuracy
 
-### Pick and Place Setup
+![alt text][image11]![alt text][image12]
 
-#### 1. For all three tabletop setups (`test*.world`), perform object recognition, then read in respective pick list (`pick_list_*.yaml`). Next construct the messages that would comprise a valid `PickPlace` request output them to `.yaml` format.
+Increasing the sample size from `10` to `20` saw a drop to 93.3%
 
-And here's another image! 
-![demo-2](https://user-images.githubusercontent.com/20687560/28748286-9f65680e-7468-11e7-83dc-f1a32380b89c.png)
+![alt text][image13]![alt text][image14]
 
-Spend some time at the end to discuss your code, what techniques you used, what worked and why, where the implementation might fail and how you might improve it if you were going to pursue this project further.  
+Increasing the histograms bin size from `64` to `128` saw an increas from 94.5% to 97.7%
+
+![alt text][image15]![alt text][image16]
 
 
+Seeing the model improve in some respects and degrade in others was interesting.
 
+# Object Recognition Results
+
+The classification and prediction pipeline stage is below:
+
+```python
+# Classify the clusters! (loop through each detected cluster one at a time)
+detected_objects_labels = []
+detected_objects_list = []
+for index, pts_list in enumerate(cluster_indices):
+    # Grab the points for the cluster from the extracted outliers (cloud_objects)
+    pcl_cluster = cloud_objects.extract(pts_list)
+    # Convert the cluster from pcl to ROS using helper function
+    ros_cluster = pcl_to_ros(pcl_cluster)
+    # Extract histogram features
+    colour_hists = compute_color_histograms(ros_cluster, using_hsv=True, bin_size=64)
+    normals = get_normals(ros_cluster)
+    norm_hist = compute_normal_histograms(normals, bin_size=64)
+    feature = np.concatenate((colour_hists, norm_hist))
+
+    # Make the prediction, retrieve the label for the result
+    # and add it to detected_objects_labels list
+    prediction = clf.predict(scaler.transform(feature.reshape(1, -1)))
+    label = encoder.inverse_transform(prediction)[0]
+    detected_objects_labels.append(label)
+
+    # Publish a label into RViz
+    label_pos = list(white_cloud[pts_list[0]])
+    label_pos[2] += .4
+    object_markers_pub.publish(make_label(label, label_pos, index))
+
+    # Add the detected object to the list of detected objects.
+    do = DetectedObject()
+    do.label = label
+    do.cloud = ros_cluster
+    detected_objects_list.append(do)
+
+# Publish the list of detected objects
+rospy.loginfo('Detected {} objects: {}'.format(len(detected_objects_labels), detected_objects_labels))
+detected_objects_pub.publish(detected_objects_list)
+```
+
+## Test World 1
+Test one was an easy experiment with 100% (3/3) objects being detected.
+
+![alt text][image17]
+
+## Test World 2
+The second world had a number of objects that looked similar however the detection algorithm was still able to detect 100% (5/5)
+
+![alt text][image18]
+
+## Test World 3
+
+
+![alt text][image19]
+
+
+# Pick and Place Determination
+
+The final component to the project, was to pass the detected objects to the `pr2_mover` function for the `pick_place_routine` of the robot. The results of this were to be sorted in a `yaml` file which provides details about the object and its associated `pick` and `place` locations.
+
+An example of the `yaml` output file.
+
+```yaml
+object_list:
+- arm_name: left
+  object_name: book
+  pick_pose:
+    orientation:
+      w: 0.0
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    position:
+      x: 0.49258291721343994
+      y: 0.08352160453796387
+      z: 0.7266173362731934
+  place_pose:
+    orientation:
+      w: 0.0
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    position:
+      x: 0
+      y: 0.71
+      z: 0.605
+  test_scene_num: 1
+```
+
+# Final Result and Improvements.
+
+The project succesfully achieved the results by identifying the objects within the test worlds. The next steps would be to continue to experiment with the SVM traning, specifically the Radial Basis Function `RBF` kernel. Also to examine the collision map and review the current objection recognition in the complex world.

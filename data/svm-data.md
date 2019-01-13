@@ -115,8 +115,51 @@ Scores: [ 1.          0.88888889  0.88888889  1.          1.          0.88888889
 Accuracy: 0.94 (+/- 0.13)
 accuracy score: 0.938888888889
 ```
+
+## RBF n-folds=5 (10 Samples, 64 bins)
+```
 ```
 
+## RBF n-folds=10 (10 Samples, 64 bins)
+```
+```
 
+## RBF n-folds=20 (10 Samples, 64 bins)
+```
+```
+
+## RBF n-folds=5 (20 Samples, 64 bins)
+```
+```
+
+## RBF n-folds=10 (20 Samples, 64 bins)
+```
+```
+
+## RBF n-folds=20 (20 Samples, 64 bins)
+```
+```
+
+## RBF n-folds=5 (10 Samples, 128 bins)
+```
+```
+
+## RBF n-folds=10 (10 Samples, 128 bins)
+```
+```
+
+## RBF n-folds=20 (10 Samples, 128 bins)
+```
+```
+
+## RBF n-folds=5 (20 Samples, 128 bins)
+```
+```
+
+## RBF n-folds=10 (20 Samples, 128 bins)
+```
+```
+
+## RBF n-folds=20 (20 Samples, 128 bins)
 ```
 ```
