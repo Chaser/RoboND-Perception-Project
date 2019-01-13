@@ -48,7 +48,7 @@ def send_to_yaml(yaml_filename, dict_list):
 
 # Callback function for your Point Cloud Subscriber
 def pcl_callback(pcl_msg):
-
+    
     # Convert ROS msg to PCL data
     pcl_data = ros_to_pcl(pcl_msg)
 
@@ -119,7 +119,6 @@ def pcl_callback(pcl_msg):
     # Euclidean Clustering
     white_cloud = XYZRGB_to_XYZ(cloud_objects)  # Apply function to convert XYZRGB to XYZ
     tree = white_cloud.make_kdtree()
-
     # Create a cluster extraction object
     ec = white_cloud.make_EuclideanClusterExtraction()
     # Set tolerances for distance threshold
@@ -132,11 +131,11 @@ def pcl_callback(pcl_msg):
     # Extract indices for each of the discovered clusters
     cluster_indices = ec.Extract()
 
+  
     # Create Cluster-Mask Point Cloud to visualize each cluster separately
     # Assign a color corresponding to each segmented object in scene
     cluster_color = get_color_list(len(cluster_indices))
     color_cluster_point_list = []
-
     for j, indices in enumerate(cluster_indices):
         for i, indice in enumerate(indices):
             color_cluster_point_list.append([white_cloud[indice][0],
@@ -165,18 +164,40 @@ def pcl_callback(pcl_msg):
     pcl_cluster_pub.publish(ros_cluster_cloud)
 
     # Classify the clusters! (loop through each detected cluster one at a time)
+    detected_objects_labels = []
+    detected_objects_list = []
+    for index, pts_list in enumerate(cluster_indices):
+        # Grab the points for the cluster from the extracted outliers (cloud_objects)
+        pcl_cluster = cloud_objects.extract(pts_list)
+        # Convert the cluster from pcl to ROS using helper function
+        ros_cluster = pcl_to_ros(pcl_cluster)
+        # Extract histogram features
+        colour_hists = compute_color_histograms(ros_cluster, using_hsv=True, bin_size=64)
+        normals = get_normals(ros_cluster)
+        norm_hist = compute_normal_histograms(normals, bin_size=64)
+        feature = np.concatenate((colour_hists, norm_hist))
 
-        # Grab the points for the cluster
-
-        # Compute the associated feature vector
-
-        # Make the prediction
+        # Make the prediction, retrieve the label for the result
+        # and add it to detected_objects_labels list
+        prediction = clf.predict(scaler.transform(feature.reshape(1, -1)))
+        label = encoder.inverse_transform(prediction)[0]
+        detected_objects_labels.append(label)
 
         # Publish a label into RViz
+        label_pos = list(white_cloud[pts_list[0]])
+        label_pos[2] += .4
+        object_markers_pub.publish(make_label(label, label_pos, index))
 
         # Add the detected object to the list of detected objects.
+        do = DetectedObject()
+        do.label = label
+        do.cloud = ros_cluster
+        detected_objects_list.append(do)
 
     # Publish the list of detected objects
+    rospy.loginfo('Detected {} objects: {}'.format(len(detected_objects_labels), detected_objects_labels))
+    detected_objects_pub.publish(detected_objects_list)
+
 
     # Suggested location for where to invoke your pr2_mover() function within pcl_callback()
     # Could add some logic to determine whether or not your object detections are robust
@@ -195,17 +216,60 @@ def pr2_mover(object_list):
 
     # TODO: Parse parameters into individual variables
 
+    # Initialize variables
+    test_scene_num = Int32()
+    test_scene_num.data = 3
+    labels = []
+    centroids = [] # to be list of tuples (x, y, z)
+    yaml_dict_list = []
+    yaml_file_name = "output_%i.yaml".format(test_scene_num)
+
+    # Get/Read parameters
+    object_list_param = rospy.get_param('/object_list')
+    dropbox_list_param = rospy.get_param('/dropbox')
+
+    # Parse parameters into individual variables
+    try:
+        # key = "name", value = "group"
+        pick_object_group = {item['name']: item['group'] for item in object_list_param}
+        # key = "group", value = "position"
+        group_position = {item['group']: item['position'] for item in dropbox_list_param}
+        # key = "group", value = "name"
+        group_arm = {item['group']: item['name'] for item in dropbox_list_param}
+    except KeyError as ke:
+        print("Invalid object, didnt have Key %s", ke)
+        return
+    
     # TODO: Rotate PR2 in place to capture side tables for the collision map
 
-    # TODO: Loop through the pick list
+    # Loop through the pick list
+    for detected_obj in object_list:
+        object_name = detected_obj.label
+        object_group = pick_object_group.get(object_name)
 
-        # TODO: Get the PointCloud for a given object and obtain it's centroid
+        # Get the PointCloud for a given object and obtain it's centroid
+        labels.append(detected_obj.label)
+        points_arr = ros_to_pcl(detected_obj.cloud).to_array()
+        centroids.append(np.mean(points_arr, axis=0)[:3])
 
-        # TODO: Create 'place_pose' for the object
+        # Determine 'pick_pose' for the object
+        pick_pose = Pose()
+        pick_pose.position.x = centroids[0]
+        pick_pose.position.y = centroids[1]
+        pick_pose.position.z = centroids[2]
 
-        # TODO: Assign the arm to be used for pick_place
+        # Create 'place_pose' for the object
+        place_pose = Pose()
+        place_pose.position.x = group_position.get(object_group)[0]
+        place_pose.position.y = group_position.get(object_group)[1]
+        place_pose.position.z = group_position.get(object_group)[2]
 
-        # TODO: Create a list of dictionaries (made with make_yaml_dict()) for later output to yaml format
+        # Assign the arm to be used for pick_place
+        arm_name = group_arm.get(object_group)
+
+        # Create a list of dictionaries (made with make_yaml_dict()) for later output to yaml format
+        yaml_dict = make_yaml_dict(test_scene_num, arm_name, object_name, pick_pose, place_pose)
+        yaml_dict_list.append(yaml_dict)
 
         # Wait for 'pick_place_routine' service to come up
         rospy.wait_for_service('pick_place_routine')
@@ -239,9 +303,17 @@ if __name__ == '__main__':
     pcl_filtered_pub = rospy.Publisher("/pcl_filtered", PointCloud2, queue_size=1)
     pcl_objects_pub = rospy.Publisher("/pcl_objects", PointCloud2, queue_size=1)
     pcl_table_pub = rospy.Publisher("/pcl_table", PointCloud2, queue_size=1)
-    pcl_cluster_pub = rospy.Publisher("/pcl_cluster", PointCloud2, queue_size=1)
+    pcl_cluster_pub = rospy.Publisher("/pcl_cluster", PointCloud2, queue_size=1)    
+    object_markers_pub = rospy.Publisher("/object_markers", Marker, queue_size=1)
+    detected_objects_pub = rospy.Publisher("/detected_objects", DetectedObjectsArray, queue_size=1)
 
-    # TODO: Load Model From disk
+    # Load Model From disk
+    model_filename = 'model_{0}_samples_{1}_bin_{2}_nfolds_{3}.sav'.format(10, 64, 'linear', '5')
+    model = pickle.load(open(model_filename, 'rb'))
+    clf = model['classifier']
+    encoder = LabelEncoder()
+    encoder.classes_ = model['classes']
+    scaler = model['scaler']
 
     # Initialize color_list
     get_color_list.color_list = []
