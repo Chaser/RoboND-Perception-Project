@@ -10,10 +10,14 @@
 [image4]: ./img/filter_vox_downsample.png
 [image5]: ./img/pcd_passthrough.png
 [image6]: ./img/filter_passthrough.png
+[image7]: ./img/ransac.png
+[image8]: ./img/dbscan_example.png
 ---
 
-
 **Aim:**  The aim of the `Perception Pick & Place` project is to create 3D perception pipeline for a PR2 robot utilziing an RGB-D camera. The perception pipline allows for capturing sensor data to point cloud data (PCD), to filter, isolate and detect objects.
+
+![alt text][image1]
+
 
 This project is inspired by the [Amazon Robotics Challenge](https://www.amazonrobotics.com/site/binaries/content/assets/amazonrobotics/arc/2017-amazon-robotics-challenge-rules-v3.pdf)
 
@@ -152,7 +156,11 @@ cloud_objects = cloud_filtered.extract(inliers, negative=True)
 ![alt text][image7]
 
 # Clustering for Segmentation
-Density-Based Spatial Clustering of Applications with Noise or `DBSCAN` 
+Density-Based Spatial Clustering of Applications with Noise or `DBSCAN`. `DBSCAN` creates clusters by grouping data points by a threshold from the nearest neighbours (shown below). The algorithm is sometimes called `Euclidean Clustering` as the decision for a point to reside within a cluster is based ipon the "Euclidean distance" between that point and other cluster members.
+
+![alt text][image8]
+
+`DBSCAN` has the a numer of advantages over other clustering techniques (e.g `K-means`) as it can be used when there are a **unknown** number of clusters present. This makes ideal for the current project as we don't know how many objects will be present.
 
 ```python
 # Euclidean Clustering
@@ -189,7 +197,9 @@ cluster_cloud.from_list(color_cluster_point_list)
 
 By creating a random list of colours and assigning each to a cluster the following objects can be seen.
 
-![alt text][image8]
+![alt text][image9]
+
+
 # Required Steps for a Passing Submission:
 1. Extract features and train an SVM model on new objects (see `pick_list_*.yaml` in `/pr2_robot/config/` for the list of models you'll be trying to identify). 
 2. Write a ROS node and subscribe to `/pr2/world/points` topic. This topic contains noisy point cloud data that you must work with.
