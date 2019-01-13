@@ -23,25 +23,29 @@ def get_normals(cloud):
 if __name__ == '__main__':
     rospy.init_node('capture_node')
 
-    models = [\
+    # Modify following list with items from pick_list_*.yaml
+    models = [
        'biscuits',
+       'book',
+       'eraser',
+       'glue',
+       'snacks',
        'soap',
        'soap2',
-       'book',
-       'glue',
+       'soda_can',
        'sticky_notes',
-       'snacks',
-       'eraser'
     ]
 
     # Disable gravity and delete the ground plane
     initial_setup()
     labeled_features = []
-
+    object_capture_count = 10
+    hist_bin = 64
+    file_name = 'pr2_training_set_{0}_samples_{1}_bin.sav' .format(object_capture_count, hist_bin)
     for model_name in models:
         spawn_model(model_name)
-
-        for i in range(5):
+	
+        for i in range(object_capture_count):
             # make five attempts to get a valid a point cloud then give up
             sample_was_good = False
             try_count = 0
@@ -57,14 +61,13 @@ if __name__ == '__main__':
                     sample_was_good = True
 
             # Extract histogram features
-            chists = compute_color_histograms(sample_cloud, using_hsv=False)
+            chists = compute_color_histograms(sample_cloud, using_hsv=True, bin_size=hist_bin)
             normals = get_normals(sample_cloud)
-            nhists = compute_normal_histograms(normals)
+            nhists = compute_normal_histograms(normals, bin_size=hist_bin)
             feature = np.concatenate((chists, nhists))
             labeled_features.append([feature, model_name])
 
         delete_model()
 
 
-    pickle.dump(labeled_features, open('training_set.sav', 'wb'))
-
+    pickle.dump(labeled_features, open(file_name, 'wb'))

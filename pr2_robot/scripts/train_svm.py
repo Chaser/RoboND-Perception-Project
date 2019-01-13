@@ -36,7 +36,11 @@ def plot_confusion_matrix(cm, classes,
     plt.xlabel('Predicted label')
 
 # Load training data from disk
-training_set = pickle.load(open('training_set.sav', 'rb'))
+sample_count = 20
+hist_bin = 128
+kernel = 'linear'
+nfolds = 20
+training_set = pickle.load(open('pr2_training_set_{0}_samples_{1}_bin.sav'.format(sample_count, hist_bin), 'rb'))
 
 # Format the features and labels for use with scikit learn
 feature_list = []
@@ -62,11 +66,11 @@ encoder = LabelEncoder()
 y_train = encoder.fit_transform(y_train)
 
 # Create classifier
-clf = svm.SVC(kernel='linear')
+clf = svm.SVC(kernel=kernel)
 
 # Set up 5-fold cross-validation
 kf = cross_validation.KFold(len(X_train),
-                            n_folds=5,
+                            n_folds=nfolds,
                             shuffle=True,
                             random_state=1)
 
@@ -101,16 +105,18 @@ clf.fit(X=X_train, y=y_train)
 model = {'classifier': clf, 'classes': encoder.classes_, 'scaler': X_scaler}
 
 # Save classifier to disk
-pickle.dump(model, open('model.sav', 'wb'))
+pickle.dump(model, open('model_{0}_samples_{1}_bin_{2}_nfolds_{3}.sav'.format(sample_count, hist_bin, kernel, nfolds), 'wb'))
 
 # Plot non-normalized confusion matrix
 plt.figure()
 plot_confusion_matrix(confusion_matrix, classes=encoder.classes_,
                       title='Confusion matrix, without normalization')
 
+plt.savefig('svm_train_confusion_matrix_{0}_samples_{1}_bin_{2}_nfolds_{3}.png'.format(sample_count, hist_bin, kernel, nfolds))
+
 # Plot normalized confusion matrix
 plt.figure()
 plot_confusion_matrix(confusion_matrix, classes=encoder.classes_, normalize=True,
                       title='Normalized confusion matrix')
-
+plt.savefig('svm_train_normalized_confusion_matrix_{0}_samples_{1}_bin_{2}_nfolds_{3}.png'.format(sample_count, hist_bin, kernel, nfolds))
 plt.show()
