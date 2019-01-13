@@ -210,24 +210,74 @@ def pcl_callback(pcl_msg):
 # function to load parameters and request PickPlace service
 def pr2_mover(object_list):
 
-    # TODO: Initialize variables
+    # Initialize variables
+    test_scene_num = Int32()
+    test_scene_num.data = 1
+    object_name = String()
+    arm_name = String()
+    labels = []
+    centroids = [] # to be list of tuples (x, y, z)
+    yaml_dict_list = []
 
-    # TODO: Get/Read parameters
+    for detected_obj in object_list:
+        # Get the PointCloud for a given object and obtain it's centroid
+        labels.append(detected_obj.label)
+        points_arr = ros_to_pcl(detected_obj.cloud).to_array()
+        centroids.append(np.mean(points_arr, axis=0)[:3])
+    
+    # Get/Read parameters
+    object_list_param = rospy.get_param('/object_list')
+    dropbox_list_param = rospy.get_param('/dropbox')
 
-    # TODO: Parse parameters into individual variables
+    # Parse parameters into individual variables
+    try:
+        # key = "name", value = "group"
+        pick_object_group = {item['name']: item['group'] for item in object_list_param}
+        # key = "group", value = "position"
+        group_position = {item['group']: item['position'] for item in dropbox_list_param}
+        # key = "group", value = "name"
+        group_arm = {item['group']: item['name'] for item in dropbox_list_param}
+    except KeyError as ke:
+        print("Invalid object, didnt have Key %s", ke)
+        return
 
     # TODO: Rotate PR2 in place to capture side tables for the collision map
 
-    # TODO: Loop through the pick list
+    # Loop through the pick list
+    for i, value in enumerate(object_list_param):
+        object_name.data  = object_list_param[i]['name']
+        object_group = object_list_param[i]['group']
+        
+        # Determine if the pick list object was detected
+        try:
+            do_idx = labels.index(object_name.data)
+        except ValueError:
+            print("Pick list contains '%s' but object was not detected" % object_name.data)
+            continue
 
-        # TODO: Get the PointCloud for a given object and obtain it's centroid
+        # Retrieve previously located centroid
+        centroid = centroids[do_idx]
+        
+        # Determine 'pick_pose' for the object
+        pick_pose = Pose()
+        pick_pose.position.x = np.asscalar(centroid[0])
+        pick_pose.position.y = np.asscalar(centroid[1])
+        pick_pose.position.z = np.asscalar(centroid[2])
 
-        # TODO: Create 'place_pose' for the object
+        # Create 'place_pose' for the object
+        place_pose = Pose()
+        place_pose.position.x = group_position.get(object_group)[0]
+        place_pose.position.y = group_position.get(object_group)[1]
+        place_pose.position.z = group_position.get(object_group)[2]
+        
+        # Assign the arm to be used for pick_place
+        arm_name.data = group_arm.get(object_group)
 
-        # TODO: Assign the arm to be used for pick_place
+        # Create a list of dictionaries (made with make_yaml_dict()) for later output to yaml format
+        yaml_dict = make_yaml_dict(test_scene_num, arm_name, object_name, pick_pose, place_pose)
+        yaml_dict_list.append(yaml_dict)
 
-        # TODO: Create a list of dictionaries (made with make_yaml_dict()) for later output to yaml format
-
+        '''
         # Wait for 'pick_place_routine' service to come up
         rospy.wait_for_service('pick_place_routine')
 
@@ -235,14 +285,17 @@ def pr2_mover(object_list):
             pick_place_routine = rospy.ServiceProxy('pick_place_routine', PickPlace)
 
             # TODO: Insert your message variables to be sent as a service request
-            resp = pick_place_routine(TEST_SCENE_NUM, OBJECT_NAME, WHICH_ARM, PICK_POSE, PLACE_POSE)
+            resp = pick_place_routine(test_scene_num, object_name, arm_name, pick_pose, place_pose)
 
             print ("Response: ",resp.success)
 
         except rospy.ServiceException, e:
             print "Service call failed: %s"%e
+        '''
 
-    # TODO: Output your request parameters into output yaml file
+    # Output your request parameters into output yaml file 
+    send_to_yaml("output_" + str(test_scene_num.data)+".yaml", yaml_dict_list)
+
     
 
 
