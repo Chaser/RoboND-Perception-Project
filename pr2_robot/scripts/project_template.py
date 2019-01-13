@@ -63,7 +63,7 @@ def pcl_callback(pcl_msg):
     outlier_filter.set_std_dev_mul_thresh(x)
     # Finally call the filter function for magic
     outliers_filtered = outlier_filter.filter()
-
+   
     # Voxel Grid Downsampling
     # Create a VoxelGrid filter object for our input point cloud
     vox = outliers_filtered.make_voxel_grid_filter()
@@ -73,25 +73,30 @@ def pcl_callback(pcl_msg):
     vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
     # Call the filter function to obtain the resultant downsampled point cloud
     downsampled = vox.filter()
+    filename = 'voxel_downsampled.pcd'
+    #pcl.save(downsampled, filename)
 
     # PassThrough Filter
     # Create a PassThrough filter object.
     passthrough = downsampled.make_passthrough_filter()
-    # Assign axis and range to the passthrough filter object.
     filter_axis = 'z'
     passthrough.set_filter_field_name(filter_axis)
     axis_min = 0.60
     axis_max = 0.9
     passthrough.set_filter_limits(axis_min, axis_max)
+    # Call the filter function to obtain the resultant
+    cloud_filtered = passthrough.filter()
     # Also limit the y axis to avoid the side bins
+    passthrough = cloud_filtered.make_passthrough_filter()
     filter_axis = 'y'
     passthrough.set_filter_field_name(filter_axis)
     axis_min = -0.42
     axis_max = +0.42
     passthrough.set_filter_limits(axis_min, axis_max)
-    
     # Finally use the filter function to obtain the resultant point cloud.
     cloud_filtered = passthrough.filter()
+    filename = 'passthrough_filter.pcd'
+    #pcl.save(cloud_filtered, filename)
 
     # RANSAC plane segmentation
     # Create the segmentation object
@@ -111,26 +116,53 @@ def pcl_callback(pcl_msg):
     # Extract outliers (objects)
     cloud_objects = cloud_filtered.extract(inliers, negative=True)
  
-    # TODO: Euclidean Clustering
+    # Euclidean Clustering
+    white_cloud = XYZRGB_to_XYZ(cloud_objects)  # Apply function to convert XYZRGB to XYZ
+    tree = white_cloud.make_kdtree()
 
-    # TODO: Create Cluster-Mask Point Cloud to visualize each cluster separately
+    # Create a cluster extraction object
+    ec = white_cloud.make_EuclideanClusterExtraction()
+    # Set tolerances for distance threshold
+    # as well as minimum and maximum cluster size (in points)
+    ec.set_ClusterTolerance(0.02)
+    ec.set_MinClusterSize(10)
+    ec.set_MaxClusterSize(2500)
+    # Search the k-d tree for clusters
+    ec.set_SearchMethod(tree)
+    # Extract indices for each of the discovered clusters
+    cluster_indices = ec.Extract()
 
-    # TODO: Convert PCL data to ROS messages
+    # Create Cluster-Mask Point Cloud to visualize each cluster separately
+    # Assign a color corresponding to each segmented object in scene
+    cluster_color = get_color_list(len(cluster_indices))
+    color_cluster_point_list = []
+
+    for j, indices in enumerate(cluster_indices):
+        for i, indice in enumerate(indices):
+            color_cluster_point_list.append([white_cloud[indice][0],
+                                             white_cloud[indice][1],
+                                             white_cloud[indice][2],
+                                             rgb_to_float(cluster_color[j])])
+
+    # Create new cloud containing all clusters, each with unique color
+    cluster_cloud = pcl.PointCloud_PointXYZRGB()
+    cluster_cloud.from_list(color_cluster_point_list)
+    
+    # Convert PCL data to ROS messages
     ros_cloud_outliers_filtered = pcl_to_ros(outliers_filtered)
     ros_cloud_downsampled =  pcl_to_ros(downsampled)
     ros_cloud_filtered = pcl_to_ros(cloud_filtered)
     ros_cloud_objects = pcl_to_ros(cloud_objects)
     ros_cloud_table = pcl_to_ros(cloud_table)
+    ros_cluster_cloud = pcl_to_ros(cluster_cloud)
 
-    # TODO: Publish ROS messages
+    # Publish ROS messages
     pcl_outliers_filtered_pub.publish(ros_cloud_outliers_filtered)
     pcl_downsampled_pub.publish(ros_cloud_downsampled)
     pcl_filtered_pub.publish(ros_cloud_filtered)
     pcl_objects_pub.publish(ros_cloud_objects)
     pcl_table_pub.publish(ros_cloud_table)
-
-
-# Exercise-3 TODOs:
+    pcl_cluster_pub.publish(ros_cluster_cloud)
 
     # Classify the clusters! (loop through each detected cluster one at a time)
 
@@ -207,6 +239,7 @@ if __name__ == '__main__':
     pcl_filtered_pub = rospy.Publisher("/pcl_filtered", PointCloud2, queue_size=1)
     pcl_objects_pub = rospy.Publisher("/pcl_objects", PointCloud2, queue_size=1)
     pcl_table_pub = rospy.Publisher("/pcl_table", PointCloud2, queue_size=1)
+    pcl_cluster_pub = rospy.Publisher("/pcl_cluster", PointCloud2, queue_size=1)
 
     # TODO: Load Model From disk
 
